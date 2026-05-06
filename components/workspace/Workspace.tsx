@@ -7,11 +7,13 @@ import Submit from "./Submit";
 export interface WorkspaceProps {
   problemId: string;
   expectedAnswer: string | null;
+  problemType?: "computational" | "derivation";
 }
 
 export default function Workspace({
   problemId,
   expectedAnswer,
+  problemType,
 }: WorkspaceProps) {
   const [scratch, setScratch] = useState<string>("");
   const [answer, setAnswer] = useState<string>("");
@@ -35,6 +37,7 @@ export default function Workspace({
       <Submit
         problemId={problemId}
         expectedAnswer={expectedAnswer}
+        problemType={problemType}
         getAnswer={getAnswer}
         getWork={getWork}
       />

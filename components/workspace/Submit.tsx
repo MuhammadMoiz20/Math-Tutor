@@ -6,8 +6,16 @@ import { loadSympy, checkEquivalent } from "@/lib/sympy/client";
 export interface SubmitProps {
   problemId: string;
   expectedAnswer: string | null;
+  problemType?: "computational" | "derivation";
   getAnswer: () => string;
   getWork: () => string;
+}
+
+interface JudgeVerdict {
+  verdict: "correct" | "partial" | "incorrect";
+  missing_claims: string[];
+  errors: string[];
+  comments: string;
 }
 
 type Status =
@@ -15,11 +23,13 @@ type Status =
   | { kind: "loading"; message: string }
   | { kind: "correct" }
   | { kind: "incorrect"; diff?: string }
+  | { kind: "judged"; judge: JudgeVerdict }
   | { kind: "error"; message: string };
 
 export default function Submit({
   problemId,
   expectedAnswer,
+  problemType = "computational",
   getAnswer,
   getWork,
 }: SubmitProps) {
@@ -28,6 +38,49 @@ export default function Submit({
 
   const onSubmit = useCallback(async () => {
     if (busy) return;
+
+    // Derivation: send the user's work to the LLM judge; no Pyodide.
+    if (problemType === "derivation") {
+      const userWork = getWork().trim();
+      if (!userWork) {
+        setStatus({
+          kind: "error",
+          message: "Write your derivation in the scratchpad first.",
+        });
+        return;
+      }
+      setBusy(true);
+      try {
+        setStatus({ kind: "loading", message: "Asking the judge…" });
+        const res = await fetch("/api/check", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            problemId,
+            userAnswer: getAnswer().trim() || null,
+            userWork,
+          }),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          setStatus({ kind: "error", message: `Server error: ${text}` });
+          return;
+        }
+        const data = (await res.json()) as { judge?: JudgeVerdict };
+        window.dispatchEvent(new CustomEvent("math-tutor:attempt-recorded"));
+        if (data.judge) setStatus({ kind: "judged", judge: data.judge });
+        else setStatus({ kind: "idle" });
+      } catch (e) {
+        setStatus({
+          kind: "error",
+          message: String((e as Error).message ?? e),
+        });
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     if (!expectedAnswer) {
       setStatus({
         kind: "error",
@@ -61,6 +114,9 @@ export default function Submit({
         setStatus({ kind: "error", message: `Server error: ${text}` });
         return;
       }
+      // Notify listeners (e.g. the chat panel's Solution-tab gate) that an
+      // attempt was just recorded.
+      window.dispatchEvent(new CustomEvent("math-tutor:attempt-recorded"));
       if (verdict.error) {
         setStatus({ kind: "error", message: verdict.error });
       } else if (verdict.equivalent) {
@@ -73,7 +129,7 @@ export default function Submit({
     } finally {
       setBusy(false);
     }
-  }, [busy, expectedAnswer, getAnswer, getWork, problemId]);
+  }, [busy, expectedAnswer, getAnswer, getWork, problemId, problemType]);
 
   return (
     <div className="flex flex-col gap-2" data-testid="submit-block">
@@ -109,6 +165,39 @@ export default function Submit({
         >
           Not yet.
           {status.diff ? ` Simplified diff: ${status.diff}` : ""}
+        </div>
+      )}
+      {status.kind === "judged" && (
+        <div
+          className="rounded border border-blue-300 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200"
+          data-testid="verdict-judged"
+        >
+          <p className="font-medium">
+            Verdict: <span data-testid="judge-verdict">{status.judge.verdict}</span>
+          </p>
+          {status.judge.missing_claims.length > 0 && (
+            <div className="mt-1">
+              <p className="font-medium">Missing claims:</p>
+              <ul className="list-disc pl-5">
+                {status.judge.missing_claims.map((c, i) => (
+                  <li key={i}>{c}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {status.judge.errors.length > 0 && (
+            <div className="mt-1">
+              <p className="font-medium">Errors:</p>
+              <ul className="list-disc pl-5">
+                {status.judge.errors.map((c, i) => (
+                  <li key={i}>{c}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {status.judge.comments && (
+            <p className="mt-1 italic">{status.judge.comments}</p>
+          )}
         </div>
       )}
       {status.kind === "error" && (

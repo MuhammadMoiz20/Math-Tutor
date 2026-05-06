@@ -10,17 +10,21 @@ import {
   type ChatMessage,
   type ChatMode,
 } from "@/lib/chat/repo";
+import { canUnlockSolution } from "@/lib/progress/unlock";
 
 const MODE_LABELS: Record<ChatMode, string> = {
   socratic: "Socratic",
   hints: "Hints",
   rigor: "Rigor",
   exam: "Exam",
+  solution: "Solution",
 };
 
 interface ChatProps {
   problemId: string;
   initialMessages: Record<ChatMode, ChatMessage[]>;
+  attemptsCount: number;
+  openedAt: number | null;
 }
 
 interface UiMessage {
@@ -38,14 +42,52 @@ function toUi(msgs: ChatMessage[]): UiMessage[] {
   }));
 }
 
-export default function Chat({ problemId, initialMessages }: ChatProps) {
+export default function Chat({
+  problemId,
+  initialMessages,
+  attemptsCount,
+  openedAt,
+}: ChatProps) {
   const [mode, setMode] = useState<ChatMode>("socratic");
   const [byMode, setByMode] = useState<Record<ChatMode, UiMessage[]>>(() => ({
     socratic: toUi(initialMessages.socratic ?? []),
     hints: toUi(initialMessages.hints ?? []),
     rigor: toUi(initialMessages.rigor ?? []),
     exam: toUi(initialMessages.exam ?? []),
+    solution: toUi(initialMessages.solution ?? []),
   }));
+  const [attempts, setAttempts] = useState(attemptsCount);
+  const [now, setNow] = useState(() => Date.now());
+  const solutionUnlocked = canUnlockSolution({
+    attempts,
+    openedAt,
+    now,
+  });
+
+  // Notify the server we've opened this problem so the timer-based unlock
+  // can begin counting down. Fire-and-forget; the server upserts the row
+  // only if absent so revisits never reset the clock.
+  useEffect(() => {
+    void fetch("/api/problem-open", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ problemId }),
+    }).catch(() => {});
+  }, [problemId]);
+
+  // Poll the clock every 30s so the timer-based unlock kicks in without a
+  // page refresh. Listen for an "attempt-recorded" custom event so the
+  // attempts-based path unlocks instantly after Submit.
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const id = window.setInterval(tick, 30_000);
+    const onAttempt = () => setAttempts((a) => a + 1);
+    window.addEventListener("math-tutor:attempt-recorded", onAttempt);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("math-tutor:attempt-recorded", onAttempt);
+    };
+  }, []);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -199,28 +241,47 @@ export default function Chat({ problemId, initialMessages }: ChatProps) {
         return "Paste the line you want critiqued…";
       case "exam":
         return "Ask only for clarification of the problem statement…";
+      case "solution":
+        return "Ask the coach to walk through any step in detail…";
     }
   }, [mode]);
 
   return (
     <div className="flex h-[36rem] flex-col" data-testid="chat">
       <div role="tablist" className="mb-3 flex gap-1 border-b border-neutral-200 dark:border-neutral-700">
-        {CHAT_MODES.map((m) => (
-          <button
-            key={m}
-            role="tab"
-            aria-selected={mode === m}
-            data-testid={`chat-tab-${m}`}
-            onClick={() => onSwitchMode(m)}
-            className={`px-3 py-1.5 text-sm transition ${
-              mode === m
-                ? "border-b-2 border-neutral-900 font-medium text-neutral-900 dark:border-neutral-100 dark:text-neutral-100"
-                : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
-            }`}
-          >
-            {MODE_LABELS[m]}
-          </button>
-        ))}
+        {CHAT_MODES.map((m) => {
+          const disabled = m === "solution" && !solutionUnlocked;
+          return (
+            <button
+              key={m}
+              role="tab"
+              aria-selected={mode === m}
+              aria-disabled={disabled}
+              disabled={disabled}
+              data-testid={`chat-tab-${m}`}
+              data-locked={disabled ? "true" : undefined}
+              title={
+                disabled
+                  ? "Make at least one attempt or spend 15 minutes on this problem to unlock Solution mode."
+                  : undefined
+              }
+              onClick={() => {
+                if (disabled) return;
+                onSwitchMode(m);
+              }}
+              className={`px-3 py-1.5 text-sm transition ${
+                mode === m
+                  ? "border-b-2 border-neutral-900 font-medium text-neutral-900 dark:border-neutral-100 dark:text-neutral-100"
+                  : disabled
+                    ? "cursor-not-allowed text-neutral-300 dark:text-neutral-600"
+                    : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+              }`}
+            >
+              {MODE_LABELS[m]}
+              {disabled ? " 🔒" : ""}
+            </button>
+          );
+        })}
       </div>
 
       <div

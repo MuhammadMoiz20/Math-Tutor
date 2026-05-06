@@ -16,6 +16,8 @@ import {
   type ChatMessage,
   type ChatMode,
 } from "@/lib/chat/repo";
+import { listAttempts } from "@/lib/attempts/repo";
+import { getOpenedAt } from "@/lib/progress/timers";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -64,11 +66,16 @@ export default async function ProblemPage({ params }: PageProps) {
     hints: [],
     rigor: [],
     exam: [],
+    solution: [],
   };
+  let attemptsCount = 0;
+  let openedAt: number | null = null;
   if (userId !== null) {
     for (const m of CHAT_MODES) {
       initialMessages[m] = listMessages(db, userId, problem.id, m);
     }
+    attemptsCount = listAttempts(db, userId, problem.id).length;
+    openedAt = getOpenedAt(db, userId, problem.id);
   }
 
   return (
@@ -102,6 +109,7 @@ export default async function ProblemPage({ params }: PageProps) {
           <Workspace
             problemId={problem.id}
             expectedAnswer={problem.expected_answer}
+            problemType={problem.type}
           />
         </div>
         <aside
@@ -111,7 +119,12 @@ export default async function ProblemPage({ params }: PageProps) {
           <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-500">
             Coach
           </p>
-          <Chat problemId={problem.id} initialMessages={initialMessages} />
+          <Chat
+            problemId={problem.id}
+            initialMessages={initialMessages}
+            attemptsCount={attemptsCount}
+            openedAt={openedAt}
+          />
         </aside>
       </div>
     </main>

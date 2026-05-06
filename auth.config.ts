@@ -16,6 +16,8 @@ export const authConfig = {
       // Concept/module content is non-sensitive in this single-user app
       // and is readable without auth so it can be linked/previewed.
       if (pathname.startsWith("/modules")) return true;
+      // Home page lists modules and is also public.
+      if (pathname === "/") return true;
       // Protect everything else by default in middleware matcher.
       return isLoggedIn;
     },

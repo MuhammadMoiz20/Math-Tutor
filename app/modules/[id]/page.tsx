@@ -3,6 +3,8 @@ import { MDXRemote } from "next-mdx-remote/rsc";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { loadModuleConcept } from "@/lib/content/loader";
+import { getDb } from "@/lib/db";
+import { listModules } from "@/lib/curriculum/repo";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -19,8 +21,16 @@ export default async function ModuleConceptPage({ params }: PageProps) {
   }
 
   const { source, frontmatter } = loaded;
+  let dbTitle: string | undefined;
+  try {
+    const row = listModules(getDb()).find((m) => m.id === id);
+    dbTitle = row?.title;
+  } catch {
+    dbTitle = undefined;
+  }
   const title =
-    typeof frontmatter.title === "string" ? frontmatter.title : id;
+    dbTitle ??
+    (typeof frontmatter.title === "string" ? frontmatter.title : id);
 
   return (
     <main className="prose prose-neutral mx-auto max-w-3xl px-6 py-10 dark:prose-invert">

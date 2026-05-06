@@ -18,6 +18,16 @@ import {
 } from "@/lib/chat/repo";
 import { listAttempts } from "@/lib/attempts/repo";
 import { getOpenedAt } from "@/lib/progress/timers";
+import { listAttachmentsForMessages } from "@/lib/chat/attachments";
+
+export interface MessageAttachment {
+  id: number;
+  mime: string;
+  data_base64: string;
+}
+export type ChatMessageWithAttachments = ChatMessage & {
+  attachments: MessageAttachment[];
+};
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -61,7 +71,7 @@ export default async function ProblemPage({ params }: PageProps) {
   const session = await auth();
   const userIdRaw = (session?.user as { id?: string } | undefined)?.id;
   const userId = userIdRaw ? Number(userIdRaw) : null;
-  const initialMessages: Record<ChatMode, ChatMessage[]> = {
+  const initialMessages: Record<ChatMode, ChatMessageWithAttachments[]> = {
     socratic: [],
     hints: [],
     rigor: [],
@@ -72,7 +82,19 @@ export default async function ProblemPage({ params }: PageProps) {
   let openedAt: number | null = null;
   if (userId !== null) {
     for (const m of CHAT_MODES) {
-      initialMessages[m] = listMessages(db, userId, problem.id, m);
+      const msgs = listMessages(db, userId, problem.id, m);
+      const attMap = listAttachmentsForMessages(
+        db,
+        msgs.map((x) => x.id),
+      );
+      initialMessages[m] = msgs.map((x) => ({
+        ...x,
+        attachments: (attMap.get(x.id) ?? []).map((a) => ({
+          id: a.id,
+          mime: a.mime,
+          data_base64: a.data_base64,
+        })),
+      }));
     }
     attemptsCount = listAttempts(db, userId, problem.id).length;
     openedAt = getOpenedAt(db, userId, problem.id);

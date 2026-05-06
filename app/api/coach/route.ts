@@ -8,6 +8,10 @@ import {
   CHAT_MODES,
   type ChatMode,
 } from "@/lib/chat/repo";
+import {
+  saveAttachment,
+  listAttachmentsForMessages,
+} from "@/lib/chat/attachments";
 import { streamCoach } from "@/lib/agent/stream";
 import { getProblem } from "@/lib/problems/repo";
 import { loadProblemMdx } from "@/lib/content/problems";
@@ -20,13 +24,28 @@ export const dynamic = "force-dynamic";
 
 const ModeSchema = z.enum(CHAT_MODES as [ChatMode, ...ChatMode[]]);
 
+const PHOTO_MIMES = ["image/jpeg", "image/png", "image/webp"] as const;
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+
 const PostBodySchema = z.object({
   problemId: z.string().min(1),
   mode: ModeSchema,
   userMessage: z.string().min(1),
   scratch: z.string().optional().default(""),
   lastVerdict: z.string().nullable().optional().default(null),
+  photoBase64: z.string().optional(),
+  photoMime: z.enum(PHOTO_MIMES).optional(),
 });
+
+function decodedBase64Bytes(b64: string): number {
+  // Cheap byte-length estimate for a base64 string without allocating a Buffer.
+  const len = b64.length;
+  if (len === 0) return 0;
+  let padding = 0;
+  if (b64.endsWith("==")) padding = 2;
+  else if (b64.endsWith("=")) padding = 1;
+  return Math.floor((len * 3) / 4) - padding;
+}
 
 export async function GET(req: NextRequest) {
   const userId = await requireUserId();
@@ -36,8 +55,19 @@ export async function GET(req: NextRequest) {
   if (!problemId || !parsed.success) {
     return new Response("bad request", { status: 400 });
   }
-  const messages = listMessages(getDb(), userId, problemId, parsed.data);
-  return Response.json({ messages });
+  const db = getDb();
+  const messages = listMessages(db, userId, problemId, parsed.data);
+  const ids = messages.map((m) => m.id);
+  const attMap = listAttachmentsForMessages(db, ids);
+  const withAtt = messages.map((m) => ({
+    ...m,
+    attachments: (attMap.get(m.id) ?? []).map((a) => ({
+      id: a.id,
+      mime: a.mime,
+      data_base64: a.data_base64,
+    })),
+  }));
+  return Response.json({ messages: withAtt });
 }
 
 export async function POST(req: NextRequest) {
@@ -47,16 +77,40 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return new Response("bad request", { status: 400 });
   }
-  const { problemId, mode, userMessage, scratch, lastVerdict } = parsed.data;
+  const {
+    problemId,
+    mode,
+    userMessage,
+    scratch,
+    lastVerdict,
+    photoBase64,
+    photoMime,
+  } = parsed.data;
+
+  // If a photo is attached, both fields must be present and the decoded
+  // payload must respect the 5 MB cap.
+  if ((photoBase64 && !photoMime) || (!photoBase64 && photoMime)) {
+    return new Response("bad request: photo fields", { status: 400 });
+  }
+  if (photoBase64 && decodedBase64Bytes(photoBase64) > PHOTO_MAX_BYTES) {
+    return new Response("photo too large", { status: 413 });
+  }
 
   const db = getDb();
-  saveMessage(db, {
+  const userMsg = saveMessage(db, {
     userId,
     problemId,
     mode,
     role: "user",
     content: userMessage,
   });
+  if (photoBase64 && photoMime) {
+    saveAttachment(db, {
+      messageId: userMsg.id,
+      mime: photoMime,
+      dataBase64: photoBase64,
+    });
+  }
 
   const history = listMessages(db, userId, problemId, mode);
 
@@ -98,6 +152,8 @@ export async function POST(req: NextRequest) {
           history,
           userMessage,
           canonicalSolution,
+          photoBase64,
+          photoMime,
         })) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(ev)}\n\n`));
           if (ev.type === "delta") assistantBuffer += ev.text;

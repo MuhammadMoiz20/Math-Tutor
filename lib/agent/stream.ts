@@ -1,4 +1,5 @@
 import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
+import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import type { ChatMessage, ChatMode } from "../chat/repo";
 import { getDb } from "../db";
@@ -22,6 +23,9 @@ export interface StreamCoachInput {
   userMessage: string;
   /** Canonical solution body (only injected when mode === "solution"). */
   canonicalSolution?: string;
+  /** Optional opt-in photo for this turn (base64 + mime). */
+  photoBase64?: string;
+  photoMime?: "image/jpeg" | "image/png" | "image/webp";
 }
 
 const BLOCKED_MESSAGE =
@@ -53,6 +57,17 @@ function buildContextHeader(input: StreamCoachInput): string {
 export async function* streamCoach(
   input: StreamCoachInput,
 ): AsyncGenerator<CoachEvent> {
+  // When the user attaches a photo for this turn, drop down to the raw
+  // Anthropic SDK so we can pass an `image` content block. Trade-off: this
+  // path forgoes the agent SDK's MCP tool surface (SymPy, get_problem_meta)
+  // for the single image-aware turn — acceptable per the Phase 8 plan since
+  // image-bearing turns are rare and the no-photo path (below) keeps the
+  // full tool-using agent identical to Phase 6/7.
+  if (input.photoBase64 && input.photoMime) {
+    yield* streamCoachWithImage(input);
+    return;
+  }
+
   const mcpServer = createSdkMcpServer({
     name: "math-tutor",
     version: "1.0.0",
@@ -230,6 +245,62 @@ export async function* streamCoach(
       }
     } else if (msg.type === "result") {
       break;
+    }
+  }
+  if (!blocked) yield { type: "done" };
+}
+
+async function* streamCoachWithImage(
+  input: StreamCoachInput,
+): AsyncGenerator<CoachEvent> {
+  const client = new Anthropic();
+  const header = buildContextHeader(input);
+  const stream = client.messages.stream({
+    model: "claude-haiku-4-5",
+    max_tokens: 1024,
+    system: getSystemPrompt(input.mode),
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: input.photoMime!,
+              data: input.photoBase64!,
+            },
+          },
+          {
+            type: "text",
+            text: `${header}\n\nUser: ${input.userMessage}`,
+          },
+        ],
+      },
+    ],
+  });
+
+  let buffer = "";
+  let blocked = false;
+  for await (const ev of stream) {
+    if (blocked) continue;
+    if (
+      ev.type === "content_block_delta" &&
+      ev.delta.type === "text_delta" &&
+      typeof ev.delta.text === "string"
+    ) {
+      const text = ev.delta.text;
+      buffer += text;
+      if (input.mode !== "solution" && looksLikeFullSolution(buffer)) {
+        blocked = true;
+        yield {
+          type: "blocked",
+          reason: "no_solution_rule",
+          text: BLOCKED_MESSAGE,
+        };
+        continue;
+      }
+      yield { type: "delta", text };
     }
   }
   if (!blocked) yield { type: "done" };

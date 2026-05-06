@@ -1,0 +1,9 @@
+modules:
+  - id: linalg-1
+    title: Linear Algebra I
+    ord: 1
+    sources:
+      - book: Mathematics for Machine Learning
+        chapters: [2, 3]
+        primary: true
+        role: primary

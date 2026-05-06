@@ -1,7 +1,17 @@
 import type { NextConfig } from "next";
+import createMDX from "@next/mdx";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  pageExtensions: ["ts", "tsx", "md", "mdx"],
 };
 
-export default nextConfig;
+const withMDX = createMDX({
+  options: {
+    remarkPlugins: [remarkMath],
+    rehypePlugins: [[rehypeKatex, { strict: false }]],
+  },
+});
+
+export default withMDX(nextConfig);

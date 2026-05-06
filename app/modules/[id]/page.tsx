@@ -1,10 +1,13 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { loadModuleConcept } from "@/lib/content/loader";
 import { getDb } from "@/lib/db";
 import { listModules } from "@/lib/curriculum/repo";
+import { listProblemsByModule } from "@/lib/problems/repo";
+import { seedProblemsForModule } from "@/lib/problems/seed";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -22,9 +25,13 @@ export default async function ModuleConceptPage({ params }: PageProps) {
 
   const { source, frontmatter } = loaded;
   let dbTitle: string | undefined;
+  let problems: Awaited<ReturnType<typeof listProblemsByModule>> = [];
   try {
-    const row = listModules(getDb()).find((m) => m.id === id);
+    const db = getDb();
+    const row = listModules(db).find((m) => m.id === id);
     dbTitle = row?.title;
+    seedProblemsForModule(db, id);
+    problems = listProblemsByModule(db, id);
   } catch {
     dbTitle = undefined;
   }
@@ -51,6 +58,26 @@ export default async function ModuleConceptPage({ params }: PageProps) {
           }}
         />
       </article>
+      {problems.length > 0 && (
+        <section className="not-prose mt-10 border-t border-neutral-200 pt-8 dark:border-neutral-800">
+          <h2 className="mb-4 text-xl font-semibold">Problems</h2>
+          <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
+            {problems.map((p) => (
+              <li key={p.id} className="py-3">
+                <Link
+                  href={`/problems/${p.id}`}
+                  className="text-base font-medium text-blue-700 hover:underline dark:text-blue-400"
+                >
+                  {p.title}
+                </Link>
+                <span className="ml-2 text-xs uppercase tracking-wide text-neutral-500">
+                  {p.type}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </main>
   );
 }

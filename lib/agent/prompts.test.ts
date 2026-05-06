@@ -1,25 +1,45 @@
 import { describe, it, expect } from "vitest";
-import { getSystemPrompt, MODES, NO_SOLUTION_RULE } from "./prompts";
+import {
+  getSystemPrompt,
+  MODES,
+  NO_SOLUTION_RULE,
+  STAY_GROUNDED_RULE,
+} from "./prompts";
 
 describe("system prompts", () => {
-  it("exposes all four phase-6 modes", () => {
+  it("exposes all five modes including solution", () => {
     expect(Object.keys(MODES).sort()).toEqual([
       "exam",
       "hints",
       "rigor",
       "socratic",
+      "solution",
     ]);
   });
 
-  it("every mode embeds NO_SOLUTION_RULE", () => {
+  it("every non-solution mode embeds NO_SOLUTION_RULE", () => {
     const head = NO_SOLUTION_RULE.split("\n")[0];
     for (const m of ["socratic", "hints", "rigor", "exam"] as const) {
       expect(getSystemPrompt(m)).toContain(head);
     }
   });
 
+  it("solution mode embeds STAY_GROUNDED_RULE not NO_SOLUTION_RULE", () => {
+    const noSolHead = NO_SOLUTION_RULE.split("\n")[0];
+    const groundedHead = STAY_GROUNDED_RULE.split("\n")[0];
+    const p = getSystemPrompt("solution");
+    expect(p).toContain(groundedHead);
+    expect(p).not.toContain(noSolHead);
+  });
+
   it("every mode mentions KaTeX-compatible math", () => {
-    for (const m of ["socratic", "hints", "rigor", "exam"] as const) {
+    for (const m of [
+      "socratic",
+      "hints",
+      "rigor",
+      "exam",
+      "solution",
+    ] as const) {
       expect(getSystemPrompt(m)).toMatch(/KaTeX/);
     }
   });
@@ -60,5 +80,8 @@ describe("system prompts", () => {
   });
   it("locks the exam prompt content", () => {
     expect(getSystemPrompt("exam")).toMatchSnapshot();
+  });
+  it("locks the solution prompt content", () => {
+    expect(getSystemPrompt("solution")).toMatchSnapshot();
   });
 });

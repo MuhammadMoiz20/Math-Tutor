@@ -16,8 +16,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - NextAuth v5 (credentials)
 - SQLite via better-sqlite3
 - Pyodide (in-browser SymPy for instant answer checking)
-- `@anthropic-ai/claude-agent-sdk` — runtime coach
-- `@anthropic-ai/sdk` — offline book-ingestion script (raw SDK, supports PDF input)
+- `@anthropic-ai/claude-agent-sdk` — **the only Anthropic client used in this repo**. Powers the runtime coach AND the offline book-ingestion script. Uses your local `claude` CLI auth (Max subscription) — no `ANTHROPIC_API_KEY` required, ever. Anything new that talks to Claude must go through this SDK.
 - MDX (`@next/mdx`, `next-mdx-remote/rsc`) for concept pages with embedded interactive widgets
 - KaTeX + `remark-math` + `rehype-katex`
 - CodeMirror 6 — markdown + KaTeX scratchpad (the "code editor" analog)
@@ -151,7 +150,8 @@ git checkout main && git pull
 ```bash
 npm install
 python3 -m pip install sympy        # required for Solution-mode SymPy tools
-cp .env.local.example .env.local    # AUTH_SECRET (32-byte hex), ANTHROPIC_API_KEY
+cp .env.local.example .env.local    # AUTH_SECRET (32-byte hex)
+claude login                        # one-time: authenticate the Agent SDK against your Max subscription
 npx tsx scripts/create-user.ts you@example.com yourpassword
 npx tsx scripts/ingest-book.ts --module linalg-1 \
   --book "books/Mathematics_For_Machine_Learning.pdf" --chapters 2,3

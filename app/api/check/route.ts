@@ -4,16 +4,20 @@ import { getDb } from "@/lib/db";
 import { getProblem } from "@/lib/problems/repo";
 import { recordAttempt, type Verdict } from "@/lib/attempts/repo";
 import { requireUserId } from "@/lib/auth/current-user";
+import { loadProblemMdx } from "@/lib/content/problems";
+import { judgeDerivation, type JudgeVerdict } from "@/lib/agent/judge";
 
 const BodySchema = z.object({
   problemId: z.string().min(1),
   userAnswer: z.string().nullable().optional(),
   userWork: z.string().nullable().optional(),
-  sympyVerdict: z.object({
-    equivalent: z.boolean(),
-    simplified_diff: z.string().optional(),
-    error: z.string().optional(),
-  }),
+  sympyVerdict: z
+    .object({
+      equivalent: z.boolean(),
+      simplified_diff: z.string().optional(),
+      error: z.string().optional(),
+    })
+    .optional(),
 });
 
 export async function POST(req: Request) {
@@ -40,8 +44,52 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "problem not found" }, { status: 404 });
   }
 
-  // Lightweight server-side sanity check: if there's no expected answer,
-  // we cannot trust an "equivalent: true" client verdict.
+  // ---- Derivation problems: LLM-judge path ----
+  if (problem.type === "derivation") {
+    const mdx = loadProblemMdx(problem.module_id, problem.id);
+    if (!mdx) {
+      return NextResponse.json({ error: "mdx missing" }, { status: 500 });
+    }
+    let judgeVerdict: JudgeVerdict;
+    try {
+      judgeVerdict = await judgeDerivation({
+        problemStatement: mdx.source,
+        rubric: problem.rubric ?? [],
+        userWork: body.userWork ?? body.userAnswer ?? "",
+        canonicalSolution: mdx.solution,
+      });
+    } catch (e) {
+      return NextResponse.json(
+        { error: "judge failed", details: String((e as Error).message) },
+        { status: 502 },
+      );
+    }
+    const v: Verdict =
+      judgeVerdict.verdict === "correct" ? "correct" : "incorrect";
+    const attempt = recordAttempt(db, {
+      user_id: userId,
+      problem_id: body.problemId,
+      user_answer: body.userAnswer ?? null,
+      user_work: body.userWork ?? null,
+      verdict: v,
+      sympy_diff: null,
+      judge_json: JSON.stringify(judgeVerdict),
+    });
+    return NextResponse.json({
+      ok: true,
+      attemptId: attempt.id,
+      verdict: v,
+      judge: judgeVerdict,
+    });
+  }
+
+  // ---- Computational problems: SymPy verdict path ----
+  if (!body.sympyVerdict) {
+    return NextResponse.json(
+      { error: "sympyVerdict required for computational problems" },
+      { status: 400 },
+    );
+  }
   if (!problem.expected_answer && body.sympyVerdict.equivalent) {
     return NextResponse.json(
       { error: "problem has no expected_answer; cannot verify" },

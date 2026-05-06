@@ -13,6 +13,9 @@ export const authConfig = {
       const { pathname } = request.nextUrl;
       const isAuthPage = pathname.startsWith("/signin");
       if (isAuthPage) return true;
+      // Concept/module content is non-sensitive in this single-user app
+      // and is readable without auth so it can be linked/previewed.
+      if (pathname.startsWith("/modules")) return true;
       // Protect everything else by default in middleware matcher.
       return isLoggedIn;
     },

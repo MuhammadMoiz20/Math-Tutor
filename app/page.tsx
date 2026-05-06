@@ -30,11 +30,20 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <header className="mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight">Math Tutor</h1>
-        <p className="mt-2 text-neutral-600 dark:text-neutral-400">
-          Curriculum modules from prerequisites through ML-paper-ready math.
-        </p>
+      <header className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Math Tutor</h1>
+          <p className="mt-2 text-neutral-600 dark:text-neutral-400">
+            Curriculum modules from prerequisites through ML-paper-ready math.
+          </p>
+        </div>
+        <Link
+          href="/review"
+          className="text-sm text-blue-700 hover:underline dark:text-blue-400"
+          data-testid="nav-review"
+        >
+          Review →
+        </Link>
       </header>
       {modules.length === 0 ? (
         <p className="text-neutral-500">

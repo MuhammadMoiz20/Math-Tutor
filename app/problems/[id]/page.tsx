@@ -76,7 +76,10 @@ export default async function ProblemPage({ params }: PageProps) {
               }}
             />
           </article>
-          <Workspace problemId={problem.id} />
+          <Workspace
+            problemId={problem.id}
+            expectedAnswer={problem.expected_answer}
+          />
         </div>
         <aside
           className="rounded border border-dashed border-neutral-300 p-4 text-sm text-neutral-500 dark:border-neutral-700"

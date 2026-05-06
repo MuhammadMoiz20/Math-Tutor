@@ -9,6 +9,10 @@ import rehypeKatex from "rehype-katex";
 
 export interface ScratchpadProps {
   problemId: string;
+  scratch: string;
+  setScratch: (v: string) => void;
+  answer: string;
+  setAnswer: (v: string) => void;
 }
 
 const DEBOUNCE_MS = 250;
@@ -20,9 +24,13 @@ function answerKey(id: string): string {
   return `final-answer:${id}`;
 }
 
-export default function Scratchpad({ problemId }: ScratchpadProps) {
-  const [scratch, setScratch] = useState<string>("");
-  const [answer, setAnswer] = useState<string>("");
+export default function Scratchpad({
+  problemId,
+  scratch,
+  setScratch,
+  answer,
+  setAnswer,
+}: ScratchpadProps) {
   const [hydrated, setHydrated] = useState(false);
   const scratchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const answerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -35,12 +43,12 @@ export default function Scratchpad({ problemId }: ScratchpadProps) {
       if (s !== null) setScratch(s);
       if (a !== null) setAnswer(a);
     } catch {
-      // ignore (private mode, etc.)
+      // ignore
     }
     setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problemId]);
 
-  // Debounced persist.
   useEffect(() => {
     if (!hydrated) return;
     if (scratchTimer.current) clearTimeout(scratchTimer.current);
@@ -71,9 +79,12 @@ export default function Scratchpad({ problemId }: ScratchpadProps) {
     };
   }, [answer, problemId, hydrated]);
 
-  const onChange = useCallback((value: string) => {
-    setScratch(value);
-  }, []);
+  const onChange = useCallback(
+    (value: string) => {
+      setScratch(value);
+    },
+    [setScratch],
+  );
 
   return (
     <div className="flex flex-col gap-4">

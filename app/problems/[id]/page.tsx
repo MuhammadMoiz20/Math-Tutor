@@ -31,12 +31,18 @@ export type ChatMessageWithAttachments = ChatMessage & {
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export const dynamic = "force-dynamic";
 
-export default async function ProblemPage({ params }: PageProps) {
+export default async function ProblemPage({
+  params,
+  searchParams,
+}: PageProps) {
   const { id } = await params;
+  const sp = (await searchParams) ?? {};
+  const reviewMode = sp.review === "1";
 
   // Find the MDX by scanning known modules for now: derive module from DB if
   // present; otherwise fall back to filesystem search.
@@ -113,6 +119,14 @@ export default async function ProblemPage({ params }: PageProps) {
           · Problem · {problem.type}
         </p>
         <h1 className="mt-1 text-3xl font-semibold">{problem.title}</h1>
+        {reviewMode ? (
+          <div
+            className="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+            data-testid="review-banner"
+          >
+            Review session — answer to schedule next interval.
+          </div>
+        ) : null}
       </header>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_22rem]">

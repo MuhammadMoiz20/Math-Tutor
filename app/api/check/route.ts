@@ -6,6 +6,8 @@ import { recordAttempt, type Verdict } from "@/lib/attempts/repo";
 import { requireUserId } from "@/lib/auth/current-user";
 import { loadProblemMdx } from "@/lib/content/problems";
 import { judgeDerivation, type JudgeVerdict } from "@/lib/agent/judge";
+import { gradeFromAttempt } from "@/lib/progress/grade";
+import { upsertReviewAfterAttempt } from "@/lib/progress/review";
 
 const BodySchema = z.object({
   problemId: z.string().min(1),
@@ -75,6 +77,14 @@ export async function POST(req: Request) {
       sympy_diff: null,
       judge_json: JSON.stringify(judgeVerdict),
     });
+    const grade = gradeFromAttempt({ verdict: v, judgeJson: judgeVerdict });
+    upsertReviewAfterAttempt(
+      db,
+      userId,
+      body.problemId,
+      grade,
+      (Date.now() / 1000) | 0,
+    );
     return NextResponse.json({
       ok: true,
       attemptId: attempt.id,
@@ -111,6 +121,15 @@ export async function POST(req: Request) {
       body.sympyVerdict.simplified_diff ?? body.sympyVerdict.error ?? null,
     judge_json: null,
   });
+
+  const grade = gradeFromAttempt({ verdict });
+  upsertReviewAfterAttempt(
+    db,
+    userId,
+    body.problemId,
+    grade,
+    (Date.now() / 1000) | 0,
+  );
 
   return NextResponse.json({
     ok: true,

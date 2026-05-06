@@ -9,6 +9,11 @@ import {
   type ChatMode,
 } from "@/lib/chat/repo";
 import { streamCoach } from "@/lib/agent/stream";
+import { getProblem } from "@/lib/problems/repo";
+import { loadProblemMdx } from "@/lib/content/problems";
+import { listAttempts } from "@/lib/attempts/repo";
+import { getOpenedAt } from "@/lib/progress/timers";
+import { canUnlockSolution } from "@/lib/progress/unlock";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,6 +60,29 @@ export async function POST(req: NextRequest) {
 
   const history = listMessages(db, userId, problemId, mode);
 
+  let canonicalSolution: string | undefined;
+  if (mode === "solution") {
+    // Server-enforced unlock gate: refuse to stream Solution-mode replies
+    // until the user has earned access (≥1 attempt OR ≥15 minutes on the
+    // problem). This is independent of the client tab being disabled.
+    const attempts = listAttempts(db, userId, problemId).length;
+    const openedAt = getOpenedAt(db, userId, problemId);
+    if (
+      !canUnlockSolution({
+        attempts,
+        openedAt,
+        now: Date.now(),
+      })
+    ) {
+      return new Response("solution mode locked", { status: 403 });
+    }
+    const problem = getProblem(db, problemId);
+    if (problem) {
+      const mdx = loadProblemMdx(problem.module_id, problem.id);
+      canonicalSolution = mdx?.solution || undefined;
+    }
+  }
+
   const encoder = new TextEncoder();
   let assistantBuffer = "";
 
@@ -69,6 +97,7 @@ export async function POST(req: NextRequest) {
           lastVerdict,
           history,
           userMessage,
+          canonicalSolution,
         })) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(ev)}\n\n`));
           if (ev.type === "delta") assistantBuffer += ev.text;

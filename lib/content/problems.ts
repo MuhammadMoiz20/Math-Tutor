@@ -16,14 +16,35 @@ export interface ProblemFrontmatter {
 
 export interface LoadedProblemMdx {
   frontmatter: ProblemFrontmatter;
+  /**
+   * Statement body. Everything before the `---SOLUTION---` divider, if
+   * present; otherwise the full body.
+   */
   source: string;
+  /**
+   * Canonical solution body. The text after the `---SOLUTION---` divider.
+   * Empty string when no divider is present (the problem has no canonical
+   * solution authored yet).
+   */
+  solution: string;
 }
+
+const SOLUTION_DIVIDER = /^---SOLUTION---\s*$/m;
 
 export function parseProblemMdx(raw: string): LoadedProblemMdx {
   const parsed = matter(raw);
+  const body = parsed.content;
+  const m = body.match(SOLUTION_DIVIDER);
+  let source = body;
+  let solution = "";
+  if (m && m.index !== undefined) {
+    source = body.slice(0, m.index).trimEnd();
+    solution = body.slice(m.index + m[0].length).trimStart();
+  }
   return {
     frontmatter: parsed.data as ProblemFrontmatter,
-    source: parsed.content,
+    source,
+    solution,
   };
 }
 

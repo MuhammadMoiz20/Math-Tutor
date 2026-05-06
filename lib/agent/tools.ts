@@ -61,7 +61,13 @@ export function getUserHistory(
       user_answer: a.user_answer,
     }));
   // Recent chat messages across modes for context.
-  const allModes: ChatMode[] = ["socratic", "hints", "rigor", "exam"];
+  const allModes: ChatMode[] = [
+    "socratic",
+    "hints",
+    "rigor",
+    "exam",
+    "solution",
+  ];
   const msgs: HistoryItem[] = [];
   for (const m of allModes) {
     for (const x of listMessages(db, userId, problemId, m)) {

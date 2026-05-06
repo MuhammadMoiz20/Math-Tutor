@@ -94,6 +94,30 @@ describe("streamCoach", () => {
     expect(blocked.reason).toBe("no_solution_rule");
   });
 
+  it("does NOT block full-solution-shaped output in solution mode", async () => {
+    const longBody = "x = 1 + 2 + 3 + 4 + 5 ".repeat(15);
+    queryMock.mockImplementation(async function* () {
+      yield deltaEvent(`$$${longBody}$$\n`);
+      yield deltaEvent("Therefore the answer is 5.");
+      yield resultEvent();
+    });
+    const events = [];
+    for await (const e of streamCoach({
+      mode: "solution",
+      problemId: "p1",
+      userId: 1,
+      scratch: "",
+      lastVerdict: null,
+      history: [],
+      userMessage: "show me the solution",
+    })) {
+      events.push(e);
+    }
+    const types = events.map((e) => e.type);
+    expect(types).not.toContain("blocked");
+    expect(types[types.length - 1]).toBe("done");
+  });
+
   it("uses exam mode prompt when mode is exam", async () => {
     queryMock.mockImplementation(async function* () {
       yield resultEvent();

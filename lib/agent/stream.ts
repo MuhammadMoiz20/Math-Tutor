@@ -5,6 +5,7 @@ import { getDb } from "../db";
 import { getProblemMeta, getUserHistory } from "./tools";
 import { getSystemPrompt } from "./prompts";
 import { looksLikeFullSolution } from "./filter";
+import * as sympy from "../sympy/server";
 
 export type CoachEvent =
   | { type: "delta"; text: string }
@@ -19,6 +20,8 @@ export interface StreamCoachInput {
   lastVerdict: string | null;
   history: ChatMessage[];
   userMessage: string;
+  /** Canonical solution body (only injected when mode === "solution"). */
+  canonicalSolution?: string;
 }
 
 const BLOCKED_MESSAGE =
@@ -31,6 +34,11 @@ function buildContextHeader(input: StreamCoachInput): string {
   ];
   if (input.lastVerdict) {
     parts.push(`Last SymPy verdict on submitted answer: ${input.lastVerdict}`);
+  }
+  if (input.mode === "solution" && input.canonicalSolution) {
+    parts.push(
+      `Canonical solution (reveal this verbatim on first turn, then chat about it):\n${input.canonicalSolution}`,
+    );
   }
   if (input.history.length > 0) {
     const recent = input.history
@@ -79,6 +87,94 @@ export async function* streamCoach(
           };
         },
       ),
+      tool(
+        "check_equivalent",
+        "Check whether two SymPy-parseable expressions are equivalent. Returns {equivalent, simplified_diff} or {error}.",
+        { a: z.string(), b: z.string() },
+        async (args: { a: string; b: string }) => ({
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(sympy.check_equivalent(args.a, args.b)),
+            },
+          ],
+        }),
+      ),
+      tool(
+        "simplify",
+        "Simplify a SymPy expression. Returns {result} or {error}.",
+        { expr: z.string() },
+        async (args: { expr: string }) => ({
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(sympy.simplify(args.expr)),
+            },
+          ],
+        }),
+      ),
+      tool(
+        "diff",
+        "Differentiate a SymPy expression with respect to a variable.",
+        { expr: z.string(), variable: z.string() },
+        async (args: { expr: string; variable: string }) => ({
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(sympy.diff(args.expr, args.variable)),
+            },
+          ],
+        }),
+      ),
+      tool(
+        "integrate",
+        "Indefinite integral of a SymPy expression with respect to a variable.",
+        { expr: z.string(), variable: z.string() },
+        async (args: { expr: string; variable: string }) => ({
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(sympy.integrate(args.expr, args.variable)),
+            },
+          ],
+        }),
+      ),
+      tool(
+        "solve",
+        "Solve an equation/expression for a variable. Returns {result: string[]} or {error}.",
+        { expr: z.string(), variable: z.string() },
+        async (args: { expr: string; variable: string }) => ({
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(sympy.solve(args.expr, args.variable)),
+            },
+          ],
+        }),
+      ),
+      tool(
+        "evaluate_at",
+        "Substitute a variable with a value and return the resulting expression.",
+        {
+          expr: z.string(),
+          variable: z.string(),
+          value: z.string(),
+        },
+        async (args: {
+          expr: string;
+          variable: string;
+          value: string;
+        }) => ({
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                sympy.evaluate_at(args.expr, args.variable, args.value),
+              ),
+            },
+          ],
+        }),
+      ),
     ],
   });
 
@@ -95,6 +191,12 @@ export async function* streamCoach(
       allowedTools: [
         "mcp__math-tutor__get_problem_meta",
         "mcp__math-tutor__get_user_history",
+        "mcp__math-tutor__check_equivalent",
+        "mcp__math-tutor__simplify",
+        "mcp__math-tutor__diff",
+        "mcp__math-tutor__integrate",
+        "mcp__math-tutor__solve",
+        "mcp__math-tutor__evaluate_at",
       ],
       includePartialMessages: true,
       maxTurns: 4,
@@ -115,7 +217,7 @@ export async function* streamCoach(
       ) {
         const text = ev.delta.text;
         buffer += text;
-        if (looksLikeFullSolution(buffer)) {
+        if (input.mode !== "solution" && looksLikeFullSolution(buffer)) {
           blocked = true;
           yield {
             type: "blocked",

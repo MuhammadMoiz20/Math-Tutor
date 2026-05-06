@@ -1,0 +1,43 @@
+---
+id: linalg-1-proof-1
+module_id: linalg-1
+title: Sum of the first n positive integers
+type: derivation
+rubric:
+  - state hypotheses
+  - use induction
+  - show base case
+  - show inductive step
+ord: 2
+source: { book: "MML", chapter: 2 }
+---
+
+Prove that for every positive integer $n$,
+
+$$
+1 + 2 + \cdots + n \;=\; \frac{n(n+1)}{2}.
+$$
+
+State your hypotheses clearly and use mathematical induction.
+
+---SOLUTION---
+
+**Claim.** For every positive integer $n$, $\displaystyle\sum_{k=1}^{n} k = \frac{n(n+1)}{2}$.
+
+**Proof.** By induction on $n$.
+
+*Base case* ($n=1$): $\sum_{k=1}^{1} k = 1$ and $\frac{1 \cdot 2}{2} = 1$, so
+the identity holds.
+
+*Inductive step.* Assume the identity holds for some $n \geq 1$, i.e.
+$\sum_{k=1}^{n} k = \frac{n(n+1)}{2}$ (the inductive hypothesis). Then
+
+$$
+\sum_{k=1}^{n+1} k \;=\; \left(\sum_{k=1}^{n} k\right) + (n+1)
+\;=\; \frac{n(n+1)}{2} + (n+1)
+\;=\; \frac{n(n+1) + 2(n+1)}{2}
+\;=\; \frac{(n+1)(n+2)}{2}.
+$$
+
+This is exactly the identity at $n+1$. By induction, the claim holds for all
+positive integers $n$. $\square$

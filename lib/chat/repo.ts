@@ -1,9 +1,15 @@
 import type { Database as DB } from "better-sqlite3";
 
-export type ChatMode = "socratic" | "hints" | "rigor" | "exam";
+export type ChatMode = "socratic" | "hints" | "rigor" | "exam" | "solution";
 export type ChatRole = "user" | "assistant";
 
-export const CHAT_MODES: ChatMode[] = ["socratic", "hints", "rigor", "exam"];
+export const CHAT_MODES: ChatMode[] = [
+  "socratic",
+  "hints",
+  "rigor",
+  "exam",
+  "solution",
+];
 
 export interface ChatMessage {
   id: number;

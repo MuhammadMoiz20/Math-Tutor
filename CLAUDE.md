@@ -150,11 +150,16 @@ git checkout main && git pull
 
 ```bash
 npm install
-cp .env.local.example .env.local   # AUTH_SECRET (32-byte hex), ANTHROPIC_API_KEY
+python3 -m pip install sympy        # required for Solution-mode SymPy tools
+cp .env.local.example .env.local    # AUTH_SECRET (32-byte hex), ANTHROPIC_API_KEY
 npx tsx scripts/create-user.ts you@example.com yourpassword
 npx tsx scripts/ingest-book.ts --module linalg-1
 npm run dev
 ```
+
+`python3` with `sympy` installed is required at runtime: the agent's
+server-side SymPy tool surface (`lib/sympy/server.ts`) shells out to it.
+Override the binary via `MATH_TUTOR_PYTHON=/path/to/python3` if needed.
 
 ## Scripts
 

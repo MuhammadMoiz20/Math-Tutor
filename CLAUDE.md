@@ -153,7 +153,8 @@ npm install
 python3 -m pip install sympy        # required for Solution-mode SymPy tools
 cp .env.local.example .env.local    # AUTH_SECRET (32-byte hex), ANTHROPIC_API_KEY
 npx tsx scripts/create-user.ts you@example.com yourpassword
-npx tsx scripts/ingest-book.ts --module linalg-1
+npx tsx scripts/ingest-book.ts --module linalg-1 \
+  --book "books/Mathematics_For_Machine_Learning.pdf" --chapters 2,3
 npm run dev
 ```
 
@@ -167,5 +168,5 @@ Override the binary via `MATH_TUTOR_PYTHON=/path/to/python3` if needed.
 - `npm run build` — production build
 - `npm test` — Vitest unit tests
 - `npm run e2e` — Playwright tests
-- `npx tsx scripts/ingest-book.ts --module <id>` — (re)ingest a module from configured sources
+- `npx tsx scripts/ingest-book.ts --module <id> [--book <path>] [--chapters 2,3] [--model <id>] [--dry-run] [--force]` — (re)ingest a module; idempotent via per-file `.ingest.json` sidecars (sha256 of PDF + chapter selection)
 - `npx tsx scripts/create-user.ts <email> <password>` — create a user

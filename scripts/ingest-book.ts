@@ -27,7 +27,7 @@ import {
   resolveSource,
   parseChapters,
 } from "@/lib/ingest/resolver";
-import { callAnthropicForModule, type AnthropicLike } from "@/lib/ingest/client";
+import { callAgentForModule } from "@/lib/ingest/client";
 import { writeModule, hashFile, hashString } from "@/lib/ingest/writer";
 import { verifyAll } from "@/lib/ingest/verify";
 
@@ -41,7 +41,7 @@ interface Args {
 }
 
 function parseArgs(argv: string[]): Args {
-  const out: Args = { model: "claude-sonnet-4-5", dryRun: false, force: false };
+  const out: Args = { model: "claude-sonnet-4-6", dryRun: false, force: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
@@ -117,16 +117,10 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error(
-      "ANTHROPIC_API_KEY is not set; either export it or pass --dry-run",
-    );
-  }
+  // Auth is handled by the Claude Agent SDK via the local `claude` CLI login
+  // (Max subscription). Run `claude login` once if you haven't.
 
-  const Anthropic = (await import("@anthropic-ai/sdk")).default;
-  const client = new Anthropic() as unknown as AnthropicLike;
-
-  const { payload } = await callAnthropicForModule(client, {
+  const { payload } = await callAgentForModule({
     bookPath: resolved.bookPath,
     bookTitle: resolved.bookTitle,
     moduleId: resolved.module.id,

@@ -8,6 +8,14 @@ import { getProblem } from "@/lib/problems/repo";
 import { seedProblemsForModule } from "@/lib/problems/seed";
 import { loadProblemMdx } from "@/lib/content/problems";
 import Workspace from "@/components/workspace/Workspace";
+import Chat from "@/components/chat/Chat";
+import { auth } from "@/auth";
+import {
+  CHAT_MODES,
+  listMessages,
+  type ChatMessage,
+  type ChatMode,
+} from "@/lib/chat/repo";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -48,6 +56,21 @@ export default async function ProblemPage({ params }: PageProps) {
   const loaded = loadProblemMdx(problem.module_id, problem.id);
   if (!loaded) notFound();
 
+  const session = await auth();
+  const userIdRaw = (session?.user as { id?: string } | undefined)?.id;
+  const userId = userIdRaw ? Number(userIdRaw) : null;
+  const initialMessages: Record<ChatMode, ChatMessage[]> = {
+    socratic: [],
+    hints: [],
+    rigor: [],
+    exam: [],
+  };
+  if (userId !== null) {
+    for (const m of CHAT_MODES) {
+      initialMessages[m] = listMessages(db, userId, problem.id, m);
+    }
+  }
+
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
       <header className="mb-6">
@@ -82,13 +105,13 @@ export default async function ProblemPage({ params }: PageProps) {
           />
         </div>
         <aside
-          className="rounded border border-dashed border-neutral-300 p-4 text-sm text-neutral-500 dark:border-neutral-700"
-          data-testid="chat-placeholder"
+          className="rounded border border-neutral-200 p-4 dark:border-neutral-700"
+          data-testid="chat-panel"
         >
-          <p className="font-medium uppercase tracking-wide">Coach</p>
-          <p className="mt-2">
-            Chat with the coach will appear here in Phase 6.
+          <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-500">
+            Coach
           </p>
+          <Chat problemId={problem.id} initialMessages={initialMessages} />
         </aside>
       </div>
     </main>

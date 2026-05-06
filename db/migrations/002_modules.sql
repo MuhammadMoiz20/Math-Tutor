@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS modules (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  ord INTEGER NOT NULL
+);

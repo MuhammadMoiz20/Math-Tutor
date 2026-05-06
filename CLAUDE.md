@@ -111,9 +111,9 @@ docs/plans/
 - **Content is ingested, not written by hand.** If you find yourself writing concept pages or problems manually, stop and ask whether the ingest pipeline should handle it.
 - **SymPy verdicts feed the next coach turn.** When wiring answer checking, the verdict object must be passed through to the agent context so its analysis is targeted, not generic.
 
-## Scope of v1
+## Scope
 
-One module end-to-end before expanding. Linear Algebra I (MML chapters 2–3): ingest, all five modes, SymPy checking, Solution mode, photo upload, spaced review queue. Then expand module by module.
+Curriculum spans the full ML-prereq stack (12 modules in `curriculum.yaml`, MML as the spine, Axler / Boyd / Wasserman / Bishop / Goodfellow as depth). Ingestion is a batch operation — all books are ingested up front and committed under `content/`. Runtime feature work (modes, SymPy checking, Solution unlock, photo upload, spaced review) still proceeds module-by-module; "done" is measured per module against the design doc.
 
 ## Git workflow
 
